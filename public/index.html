@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Видеочат университета</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+      }
+      img {
+        width: 150px;
+        margin-bottom: 20px;
+      }
+      form {
+        margin-top: 20px;
+      }
+      button {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Логотип университета -->
+    <img src="logo.png" alt="Логотип университета" />
+
+    <h1>Видеочат Университета</h1>
+
+    <!-- Форма авторизации -->
+    <div id="auth">
+      <form id="login-form">
+        <label for="username">Логин:</label><br />
+        <input type="text" id="username" required /><br />
+        <label for="password">Пароль:</label><br />
+        <input type="password" id="password" required /><br />
+        <button type="submit">Войти</button>
+      </form>
+    </div>
+
+    <!-- Кнопки после авторизации -->
+    <div id="after-login" class="hidden">
+      <button id="create-conference" class="teacher-only">
+        Создать конференцию
+      </button>
+      <button id="join-conference">Присоединиться к конференции</button>
+    </div>
+
+    <div id="conference-list" class="hidden">
+      <h3>Доступные конференции</h3>
+      <ul id="conference-ul"></ul>
+    </div>
+
+    <div id="create-conference-form" class="hidden">
+      <h3>Создание конференции</h3>
+      <form id="conference-form">
+        <label for="conf-name">Название:</label><br />
+        <input type="text" id="conf-name" required /><br />
+        <label for="conf-password">Пароль (необязательно):</label><br />
+        <input type="text" id="conf-password" /><br />
+        <label for="conf-auto-record">Автозапись:</label>
+        <input type="checkbox" id="conf-auto-record" /><br />
+        <button type="submit">Создать</button>
+      </form>
+    </div>
+
+    <script>
+      const socket = io()
+      const createConfBtn = document.getElementById('create-conference')
+      const joinConfBtn = document.getElementById('join-conference')
+      const conferenceListDiv = document.getElementById('conference-list')
+      const conferenceUL = document.getElementById('conference-ul')
+      const conferenceFormDiv = document.getElementById(
+        'create-conference-form'
+      )
+      const conferenceForm = document.getElementById('conference-form')
+      const afterLoginDiv = document.getElementById('after-login')
+      const authDiv = document.getElementById('auth')
+
+      let username
+      let userRole
+
+      // Функция для авторизации
+      document
+        .getElementById('login-form')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault()
+          username = document.getElementById('username').value
+          const password = document.getElementById('password').value
+
+          // Отправка запроса на сервер для авторизации
+          const response = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            userRole = data.role
+
+            // Скрыть форму авторизации и показать кнопки
+            authDiv.classList.add('hidden')
+            afterLoginDiv.classList.remove('hidden')
+
+            // Показывать кнопку "Создать конференцию" только для преподавателей
+            if (userRole === 'teacher') {
+              createConfBtn.classList.remove('hidden')
+            } else {
+              createConfBtn.classList.add('hidden')
+            }
+          } else {
+            alert('Неверные логин или пароль')
+          }
+        })
+
+      // Создание конференции
+      createConfBtn.addEventListener('click', () => {
+        conferenceFormDiv.classList.remove('hidden')
+      })
+
+      conferenceForm.addEventListener('submit', async (e) => {
+        e.preventDefault()
+        const name = document.getElementById('conf-name').value
+        const password = document.getElementById('conf-password').value
+        const autoRecord = document.getElementById('conf-auto-record').checked
+
+        const response = await fetch('/create-conference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            creator: username,
+            password,
+            autoRecord,
+          }),
+        })
+
+        const conference = await response.json()
+        alert(`Конференция "${conference.name}" создана!`)
+        conferenceFormDiv.classList.add('hidden')
+      })
+
+      // Получение списка конференций
+      joinConfBtn.addEventListener('click', async () => {
+        const response = await fetch('/conferences')
+        const conferences = await response.json()
+
+        conferenceListDiv.classList.remove('hidden')
+        conferenceUL.innerHTML = ''
+
+        conferences.forEach((conf) => {
+          const li = document.createElement('li')
+          li.textContent = `${conf.name} (Преподаватель: ${conf.creator}, Участники: ${conf.participants})`
+          li.addEventListener('click', () => joinConference(conf))
+          conferenceUL.appendChild(li)
+        })
+      })
+
+      // Присоединение к конференции
+      const joinConference = (conf) => {
+        if (conf.password) {
+          const userPassword = prompt('Введите пароль конференции:')
+          if (userPassword !== conf.password) {
+            alert('Неверный пароль')
+            return
+          }
+        }
+        socket.emit('join-conference', conf.id)
+        alert(`Вы присоединились к конференции "${conf.name}"`)
+      }
+
+      // Реакция на обновление конференции
+      socket.on('conference-updated', (updatedConf) => {
+        const items = conferenceUL.children
+        for (let item of items) {
+          if (item.textContent.includes(updatedConf.name)) {
+            item.textContent = `${updatedConf.name} (Преподаватель: ${updatedConf.creator}, Участники: ${updatedConf.participants})`
+          }
+        }
+      })
+    </script>
+  </body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Конференция - Видеочат Университета</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+      }
+      video {
+        width: 100%;
+        max-width: 800px;
+        margin-bottom: 20px;
+      }
+      button {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Конференция <span id="conf-name"></span></h1>
+
+    <video id="local-video" autoplay muted></video>
+    <div id="remote-videos"></div>
+
+    <button id="start-call">Начать звонок</button>
+    <button id="leave-call">Покинуть конференцию</button>
+
+    <script>
+      const socket = io()
+      const confName = document.getElementById('conf-name')
+      const localVideo = document.getElementById('local-video')
+      const remoteVideos = document.getElementById('remote-videos')
+      const startCallBtn = document.getElementById('start-call')
+      const leaveCallBtn = document.getElementById('leave-call')
+
+      let localStream
+      let peerConnections = {}
+      const roomId = new URLSearchParams(window.location.search).get('roomId')
+
+      // Устанавливаем имя конференции
+      confName.textContent = roomId
+
+      // Функция для получения медиа потока
+      const getUserMedia = async () => {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        })
+        localVideo.srcObject = localStream
+      }
+
+      // Начало звонка
+      startCallBtn.addEventListener('click', () => {
+        getUserMedia()
+        socket.emit('join-room', roomId)
+      })
+
+      // Окончание конференции
+      leaveCallBtn.addEventListener('click', () => {
+        socket.emit('leave-room', roomId)
+        window.location.href = '/'
+      })
+
+      // Обработка подключения к комнате
+      socket.on('user-connected', (userId) => {
+        console.log(`User ${userId} connected`)
+        // Создание нового peer-соединения
+      })
+
+      socket.on('user-disconnected', (userId) => {
+        console.log(`User ${userId} disconnected`)
+        // Удаление видеопотока
+      })
+    </script>
+  </body>
+</html>
